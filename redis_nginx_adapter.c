@@ -2,6 +2,7 @@
 #include <ngx_http.h>
 #include <signal.h>
 #include <redis_nginx_adapter.h>
+#include <ngx_event.h>
 
 #define SELECT_DATABASE_COMMAND "SELECT %d"
 #define PING_DATABASE_COMMAND "PING"
@@ -17,6 +18,24 @@ redis_nginx_init(void)
     signal(SIGPIPE, SIG_IGN);
 }
 
+void
+redis_nginx_controller()
+{
+	while(1){
+		ngx_process_events_and_timers(ngx_cycle);
+	}
+}
+
+void 
+redis_nginx_log(int loglevel, const char* fmt, ...)
+{
+	char buf[512];
+	va_list va;
+	va_start(va, fmt);
+	vsnprintf(buf, sizeof(buf)/sizeof(char), fmt, va);
+	va_end(va);
+	ngx_log_error(loglevel,  ngx_cycle->log, 0, buf);
+}
 
 void
 redis_nginx_select_callback(redisAsyncContext *ac, void *rep, void *privdata)
@@ -123,8 +142,7 @@ redis_nginx_close_context(redisAsyncContext **context)
         *context = NULL;
     }
 }
-
-
+    
 void
 redis_nginx_ping_callback(redisAsyncContext *ac, void *rep, void *privdata)
 {
@@ -140,6 +158,7 @@ redis_nginx_ping_callback(redisAsyncContext *ac, void *rep, void *privdata)
 void
 redis_nginx_read_event(ngx_event_t *ev)
 {
+    ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: redis_nginx_read_event");
     ngx_connection_t *connection = (ngx_connection_t *) ev->data;
     redisAsyncHandleRead(connection->data);
 }
@@ -148,6 +167,7 @@ redis_nginx_read_event(ngx_event_t *ev)
 void
 redis_nginx_write_event(ngx_event_t *ev)
 {
+    ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: redis_nginx_write_event");
     ngx_connection_t *connection = (ngx_connection_t *) ev->data;
     redisAsyncHandleWrite(connection->data);
 }
@@ -161,6 +181,7 @@ int redis_nginx_fd_is_valid(int fd) {
 void
 redis_nginx_add_read(void *privdata)
 {
+    ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: redis_nginx_add_read");
     ngx_connection_t *connection = (ngx_connection_t *) privdata;
     if (!connection->read->active && redis_nginx_fd_is_valid(connection->fd)) {
         connection->read->handler = redis_nginx_read_event;
@@ -175,6 +196,7 @@ redis_nginx_add_read(void *privdata)
 void
 redis_nginx_del_read(void *privdata)
 {
+    ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: redis_nginx_del_read");
     ngx_connection_t *connection = (ngx_connection_t *) privdata;
     if (connection->read->active && redis_nginx_fd_is_valid(connection->fd)) {
         if (ngx_del_event(connection->read, NGX_READ_EVENT, 0) == NGX_ERROR) {
@@ -187,6 +209,7 @@ redis_nginx_del_read(void *privdata)
 void
 redis_nginx_add_write(void *privdata)
 {
+    ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: redis_nginx_add_write");
     ngx_connection_t *connection = (ngx_connection_t *) privdata;
     if (!connection->write->active && redis_nginx_fd_is_valid(connection->fd)) {
         connection->write->handler = redis_nginx_write_event;
@@ -201,6 +224,7 @@ redis_nginx_add_write(void *privdata)
 void
 redis_nginx_del_write(void *privdata)
 {
+    ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: redis_nginx_del_write");
     ngx_connection_t *connection = (ngx_connection_t *) privdata;
     if (connection->write->active && redis_nginx_fd_is_valid(connection->fd)) {
         if (ngx_del_event(connection->write, NGX_WRITE_EVENT, 0) == NGX_ERROR) {
